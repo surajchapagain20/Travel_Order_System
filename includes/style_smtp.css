@@ -1,0 +1,107 @@
+/* style_smtp.css */
+/* Premium look using Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    margin: 0;
+    padding: 0;
+    color: #2d3748;
+}
+
+/* Navigation Bar */
+.navbar {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 0.8rem 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 1.5rem;
+}
+
+.nav-list li a {
+    text-decoration: none;
+    color: #2d3748;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.nav-list li a:hover {
+    color: #2563eb; /* blue-600 */
+}
+
+/* Card styling (existing) */
+.smtp-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(37,99,235,0.07);
+    border: 1px solid #e2e8f0;
+    padding: 2rem;
+    margin-top: 2rem;
+}
+
+/* Buttons */
+.btn-save {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: background 0.2s;
+}
+
+.btn-save:hover {
+    background: #1d4ed8;
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    color: #2563eb;
+    border: 1px solid #2563eb;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: background 0.2s, color 0.2s;
+}
+
+.btn-outline-secondary:hover {
+    background: #2563eb;
+    color: #fff;
+}
+
+.btn-test {
+    background: #10b981; /* emerald-500 */
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-test:hover {
+    background: #059669;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nav-list { gap: 1rem; flex-wrap: wrap; }
+    .smtp-card { padding: 1.5rem; }
+}
