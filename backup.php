@@ -17,7 +17,6 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     $message = $_SESSION['message'] ?? '';
     unset($_SESSION['message']);
 
-
     date_default_timezone_set("Asia/Kathmandu");
     $currentDateTime = date("Y-m-d H:i:s");
 
@@ -39,16 +38,14 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
         $mysqlUserEscaped = escapeshellarg($mysqlUser);
         $mysqlPasswordPart = $mysqlPassword !== '' ? '-p' . escapeshellarg($mysqlPassword) : '';
         $backupFileEscaped = escapeshellarg($backupFile);
-        $mysqlPathEscaped = escapeshellcmd($mysqlPath);
 
-		  $command = "D:\\xampp\\mysql\\bin\\mysqldump.exe -u $mysqlUserEscaped $mysqlPasswordPart --all-databases > $backupFileEscaped";
-		//$command = "$mysqlPathEscaped -u $mysqlUserEscaped $mysqlPasswordPart --all-databases --result-file=$backupFileEscaped";
+        $command = "D:\\xampp\\mysql\\bin\\mysqldump.exe -u $mysqlUserEscaped $mysqlPasswordPart --all-databases > $backupFileEscaped";
         exec($command, $output, $result);
 
         if ($result === 0) {
             $_SESSION['message'] = "<div class='alert alert-success'>✅ Backup created successfully at <code>$timestamp</code>.</div>";
         } else {
-            $_SESSION['message'] = "<div class='alert alert-danger'>❌ Backup failed. Please check MySQL path or credentials.<br><small>Command: <code>$command</code></small><br><small>Error Code: $result</small></div>";
+            $_SESSION['message'] = "<div class='alert alert-danger'>❌ Backup failed. Please check MySQL path or credentials.<br><small>Command: <code>" . htmlspecialchars($command) . "</code></small><br><small>Error Code: $result</small></div>";
         }
         header('Location: ' . $_SERVER['PHP_SELF']);
         exit;
@@ -61,8 +58,8 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 
         if (file_exists($filepath)) {
             unlink($filepath) ?
-                $message = "<div class='alert alert-warning'>🗑️ File <strong>$filename</strong> deleted.</div>" :
-                $message = "<div class='alert alert-danger'>❌ Failed to delete <strong>$filename</strong>.</div>";
+                $message = "<div class='alert alert-warning'>🗑️ File <strong>" . htmlspecialchars($filename) . "</strong> deleted.</div>" :
+                $message = "<div class='alert alert-danger'>❌ Failed to delete <strong>" . htmlspecialchars($filename) . "</strong>.</div>";
         } else {
             $message = "<div class='alert alert-danger'>❌ File not found for deletion.</div>";
         }
@@ -75,24 +72,58 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 
         if (file_exists($filepath)) {
             header('Content-Description: File Transfer');
-            header('Content-Type: application/sql');
+            header('Content-Type: application/octet-stream');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
             header('Content-Length: ' . filesize($filepath));
-            readfile($filepath);
+            header('Cache-Control: must-revalidate');
+            // Stream file in chunks to avoid memory issues
+            $chunkSize = 1024 * 1024; // 1MB chunks
+            $handle = fopen($filepath, 'rb');
+            if ($handle !== false) {
+                while (!feof($handle)) {
+                    echo fread($handle, $chunkSize);
+                    flush();
+                }
+                fclose($handle);
+            }
             exit;
         } else {
             $message = "<div class='alert alert-danger'>❌ File not found.</div>";
         }
     }
 
-    // Handle View Modal
+    // Handle View Modal — FIX: stream in chunks instead of loading entire file into memory
     if (isset($_GET['view'])) {
         $filename = basename($_GET['view']);
         $filepath = "$backupDir/$filename";
+
         if (file_exists($filepath)) {
-            echo "<pre style='white-space: pre-wrap; word-wrap: break-word; max-height: 70vh; overflow:auto;'>";
-            echo htmlspecialchars(file_get_contents($filepath));
-            echo "</pre>";
+            $maxBytes   = 2 * 1024 * 1024; // Show first 2 MB only
+            $chunkSize  = 64 * 1024;        // Read in 64 KB chunks
+            $totalRead  = 0;
+            $truncated  = false;
+
+            $handle = fopen($filepath, 'rb');
+            if ($handle !== false) {
+                echo "<pre style='white-space: pre-wrap; word-wrap: break-word; max-height: 70vh; overflow:auto; font-size:12px;'>";
+                while (!feof($handle) && $totalRead < $maxBytes) {
+                    $chunk = fread($handle, $chunkSize);
+                    echo htmlspecialchars($chunk);
+                    $totalRead += strlen($chunk);
+                }
+                if (!feof($handle)) {
+                    $truncated = true;
+                }
+                fclose($handle);
+                echo "</pre>";
+
+                if ($truncated) {
+                    $fileSize = round(filesize($filepath) / (1024 * 1024), 2);
+                    echo "<div class='alert alert-warning mt-2'>⚠️ File is <strong>{$fileSize} MB</strong> — only the first 2 MB is shown. Use <strong>Download</strong> to get the full file.</div>";
+                }
+            } else {
+                echo "<p class='text-danger'>❌ Could not open file.</p>";
+            }
         } else {
             echo "<p class='text-danger'>❌ File not found.</p>";
         }
@@ -104,6 +135,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     foreach (glob("$backupDir/*.sql") as $file) {
         $backups[] = [
             'name' => basename($file),
+            'size' => round(filesize($file) / (1024 * 1024), 2) . ' MB',
             'time' => date("Y-m-d H:i:s", filemtime($file))
         ];
     }
@@ -131,11 +163,15 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script>
         function viewFile(filename) {
+            document.getElementById('modalContent').innerHTML = '<p class="text-muted">Loading...</p>';
+            new bootstrap.Modal(document.getElementById('viewModal')).show();
             fetch('?view=' + encodeURIComponent(filename))
                 .then(res => res.text())
                 .then(data => {
                     document.getElementById('modalContent').innerHTML = data;
-                    new bootstrap.Modal(document.getElementById('viewModal')).show();
+                })
+                .catch(() => {
+                    document.getElementById('modalContent').innerHTML = '<p class="text-danger">❌ Failed to load file preview.</p>';
                 });
         }
     </script>
@@ -168,11 +204,14 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
         <?php if ($backups): ?>
             <ul class="list-group">
                 <?php foreach ($backups as $b): ?>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <?= htmlspecialchars($b['name']) ?>
-                        <div>
-                            <span class="badge bg-secondary me-2"><?= $b['time'] ?></span>
-                            <button class="btn btn-sm btn-info" onclick="viewFile('<?= htmlspecialchars($b['name']) ?>')">👁️ View</button>
+                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>
+                            <?= htmlspecialchars($b['name']) ?>
+                            <span class="badge bg-light text-secondary border ms-1"><?= $b['size'] ?></span>
+                        </span>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="badge bg-secondary"><?= $b['time'] ?></span>
+                            <button class="btn btn-sm btn-info" onclick="viewFile('<?= htmlspecialchars($b['name'], ENT_QUOTES) ?>')">👁️ View</button>
                             <a href="?download=<?= urlencode($b['name']) ?>" class="btn btn-sm btn-success">⬇️ Download</a>
                             <form method="post" style="display:inline;" onsubmit="return confirm('Delete this backup?');">
                                 <input type="hidden" name="delete_file" value="<?= htmlspecialchars($b['name']) ?>">
@@ -190,7 +229,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 
 <!-- Modal -->
 <div class="modal fade" id="viewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">📄 SQL File Content</h5>

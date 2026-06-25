@@ -2,6 +2,7 @@
 require_once 'auth.php';
 requireLogin();
 require_once 'db.php';
+
 $successMessage = $errorMessage = '';
 // ── Database connection ────────────────────────────────────────────────────
 try {
@@ -75,17 +76,12 @@ if (isset($_GET['fetch_travel_order'])) {
                t.department AS office, t.purpose, t.travelDateFrom AS from_date,
                t.travelDateTo AS to_date, t.modeOfTransport AS vehicle,
                t.kilometer AS distance, t.entryDate AS signature_date,
-               t.estimatedCost, t.EmpID, b.branch_name AS branch_office, p.PostName AS post_name
+               t.EmpID, b.branch_name AS branch_office, p.PostName AS post_name
         FROM travel_orders t
         LEFT JOIN employees e ON e.EmpID = t.EmpID
         LEFT JOIN branches  b ON b.BrCode = t.BrCode
         LEFT JOIN posts     p ON p.PostId = e.designation
         WHERE t.EmpID = ?
-          AND NOT EXISTS (
-              SELECT 1 FROM travel_expenses te 
-              WHERE te.travel_order_no = t.travel_order_no 
-                AND LOWER(te.status) = 'approved'
-          )
         ORDER BY t.entryDate DESC
         LIMIT 50
     ");
@@ -153,35 +149,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         // ── Validate document upload (server-side guard) ───────────────
         $hasFile = isset($_FILES['document']) && $_FILES['document']['error'] === UPLOAD_ERR_OK;
-        $existingDocPath = trim($_POST['existing_document_path'] ?? '');
-
-        // Security check for existing document path to prevent traversal
-        if (!empty($existingDocPath)) {
-            $normalizedPath = str_replace('\\', '/', $existingDocPath);
-            if (!str_starts_with($normalizedPath, 'uploads/travel_bills/') || str_contains($normalizedPath, '..')) {
-                throw new Exception("अमान्य कागजात मार्ग। (Invalid document path.)");
-            }
-        }
-
-        if (!$hasFile && empty($existingDocPath)) {
+        if (!$hasFile) {
             throw new Exception("कागजात / बिल अपलोड गर्नुपर्छ। (Document upload is required.)");
         }
 
         $documentPath = null;
-        if ($hasFile) {
-            $file    = $_FILES['document'];
-            $fileExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            if (in_array($fileExt, ['pdf','jpg','jpeg','png'])) {
-                $newFileName = 'travel_bill_' . time() . '_' . uniqid() . '.' . $fileExt;
-                $destination = $uploadDir . $newFileName;
-                if (!move_uploaded_file($file['tmp_name'], $destination))
-                    throw new Exception("Failed to move uploaded file.");
-                $documentPath = $destination;
-            } else {
-                throw new Exception("Invalid file type. Allowed: PDF, JPG, PNG");
-            }
+        $file    = $_FILES['document'];
+        $fileExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (in_array($fileExt, ['pdf','jpg','jpeg','png'])) {
+            $newFileName = 'travel_bill_' . time() . '_' . uniqid() . '.' . $fileExt;
+            $destination = $uploadDir . $newFileName;
+            if (!move_uploaded_file($file['tmp_name'], $destination))
+                throw new Exception("Failed to move uploaded file.");
+            $documentPath = $destination;
         } else {
-            $documentPath = $existingDocPath;
+            throw new Exception("Invalid file type. Allowed: PDF, JPG, PNG");
         }
 
         $postEmpID = trim($_POST['emp_id'] ?? '');
@@ -189,170 +171,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Employee ID missing. Please reload the employee and resubmit.");
         }
 
-        $existingId = isset($_POST['id']) && !empty($_POST['id']) ? intval($_POST['id']) : null;
+        $stmt = $pdo->prepare("
+            INSERT INTO travel_expenses
+                (emp_id, name, position, office, purpose, from_date, to_date, vehicle,
+                 distance, fare, airport, road_tax, daily_rate, days, hotel, other_exp,
+                 advance, signature_date, remarks, document_path, travel_order_no)
+            VALUES
+                (:emp_id, :name, :position, :office, :purpose, :from_date, :to_date,
+                 :vehicle, :distance, :fare, :airport, :road_tax, :daily_rate, :days,
+                 :hotel, :other_exp, :advance, :signature_date, :remarks, :document_path,
+                 :travel_order_no)
+        ");
 
-        if (isset($existingId) && $existingId) {
-            // Update existing record
-            $stmt = $pdo->prepare("
-                UPDATE travel_expenses SET
-                    emp_id = :emp_id,
-                    name = :name,
-                    position = :position,
-                    office = :office,
-                    purpose = :purpose,
-                    from_date = :from_date,
-                    to_date = :to_date,
-                    vehicle = :vehicle,
-                    distance = :distance,
-                    fare = :fare,
-                    airport = :airport,
-                    road_tax = :road_tax,
-                    daily_rate = :daily_rate,
-                    days = :days,
-                    hotel = :hotel,
-                    other_exp = :other_exp,
-                    advance = :advance,
-                    signature_date = :signature_date,
-                    remarks = :remarks,
-                    document_path = :document_path,
-                    travel_order_no = :travel_order_no
-                WHERE id = :id
-            ");
-            $stmt->execute([
-                ':emp_id'           => $postEmpID,
-                ':name'             => trim($_POST['name']           ?? ''),
-                ':position'         => trim($_POST['position']       ?? ''),
-                ':office'           => trim($_POST['office']         ?? ''),
-                ':purpose'          => trim($_POST['purpose']        ?? ''),
-                ':from_date'        => $_POST['from_date']           ?: null,
-                ':to_date'          => $_POST['to_date']             ?: null,
-                ':vehicle'          => trim($_POST['vehicle']        ?? ''),
-                ':distance'         => floatval($_POST['distance']   ?? 0),
-                ':fare'             => floatval($_POST['fare']       ?? 0),
-                ':airport'          => floatval($_POST['airport']    ?? 0),
-                ':road_tax'         => floatval($_POST['road_tax']   ?? 0),
-                ':daily_rate'       => floatval($_POST['daily_rate'] ?? 0),
-                ':days'             => intval($_POST['days']         ?? 0),
-                ':hotel'            => floatval($_POST['hotel']      ?? 0),
-                ':other_exp'        => floatval($_POST['other_exp']  ?? 0),
-                ':advance'          => floatval($_POST['advance']    ?? 0),
-                ':signature_date'   => $_POST['signature_date']      ?: null,
-                ':remarks'          => trim($_POST['remarks']        ?? ''),
-                ':document_path'    => $documentPath,
-                ':travel_order_no'  => trim($_POST['travel_order_no'] ?? '') ?: null,
-                ':id'               => $existingId
-            ]);
-            $lastId = $existingId;
-        } else {
-            // Check if a pending record already exists for this travel_order_no
-            $postOrderNo = trim($_POST['travel_order_no'] ?? '');
-            $dup = null;
-            if ($postOrderNo !== '') {
-                $chk = $pdo->prepare("
-                    SELECT id, status FROM travel_expenses
-                    WHERE emp_id = ? AND travel_order_no = ?
-                    LIMIT 1
-                ");
-                $chk->execute([$postEmpID, $postOrderNo]);
-                $dup = $chk->fetch(PDO::FETCH_ASSOC);
-            }
+        $stmt->execute([
+            ':emp_id'           => $postEmpID,
+            ':name'             => trim($_POST['name']           ?? ''),
+            ':position'         => trim($_POST['position']       ?? ''),
+            ':office'           => trim($_POST['office']         ?? ''),
+            ':purpose'          => trim($_POST['purpose']        ?? ''),
+            ':from_date'        => $_POST['from_date']           ?: null,
+            ':to_date'          => $_POST['to_date']             ?: null,
+            ':vehicle'          => trim($_POST['vehicle']        ?? ''),
+            ':distance'         => floatval($_POST['distance']   ?? 0),
+            ':fare'             => floatval($_POST['fare']       ?? 0),
+            ':airport'          => floatval($_POST['airport']    ?? 0),
+            ':road_tax'         => floatval($_POST['road_tax']   ?? 0),
+            ':daily_rate'       => floatval($_POST['daily_rate'] ?? 0),
+            ':days'             => intval($_POST['days']         ?? 0),
+            ':hotel'            => floatval($_POST['hotel']      ?? 0),
+            ':other_exp'        => floatval($_POST['other_exp']  ?? 0),
+            ':advance'          => floatval($_POST['advance']    ?? 0),
+            ':signature_date'   => $_POST['signature_date']      ?: null,
+            ':remarks'          => trim($_POST['remarks']        ?? ''),
+            ':document_path'    => $documentPath,
+            ':travel_order_no'  => trim($_POST['travel_order_no'] ?? '') ?: null,
+        ]);
 
-            if ($dup && strtolower($dup['status']) === 'approved') {
-                throw new Exception(
-                    "यो Travel Order No ({$postOrderNo}) को खर्च विवरण स्वीकृत (Approved) भइसकेको छ।" .
-                    " (Expense ID: #{$dup['id']}) -- स्वीकृत रेकर्ड सम्पादन गर्न सकिँदैन।"
-                );
-            } elseif ($dup && strtolower($dup['status']) === 'pending') {
-                $existingId = $dup['id'];
-                $stmt = $pdo->prepare("
-                    UPDATE travel_expenses SET
-                        emp_id          = :emp_id,
-                        name            = :name,
-                        position        = :position,
-                        office          = :office,
-                        purpose         = :purpose,
-                        from_date       = :from_date,
-                        to_date         = :to_date,
-                        vehicle         = :vehicle,
-                        distance        = :distance,
-                        fare            = :fare,
-                        airport         = :airport,
-                        road_tax        = :road_tax,
-                        daily_rate      = :daily_rate,
-                        days            = :days,
-                        hotel           = :hotel,
-                        other_exp       = :other_exp,
-                        advance         = :advance,
-                        signature_date  = :signature_date,
-                        remarks         = :remarks,
-                        document_path   = :document_path,
-                        travel_order_no = :travel_order_no
-                    WHERE id = :id
-                ");
-                $stmt->execute([
-                    ':emp_id'          => $postEmpID,
-                    ':name'            => trim($_POST['name'] ?? ''),
-                    ':position'        => trim($_POST['position'] ?? ''),
-                    ':office'          => trim($_POST['office'] ?? ''),
-                    ':purpose'         => trim($_POST['purpose'] ?? ''),
-                    ':from_date'       => $_POST['from_date'] ?: null,
-                    ':to_date'         => $_POST['to_date'] ?: null,
-                    ':vehicle'         => trim($_POST['vehicle'] ?? ''),
-                    ':distance'        => floatval($_POST['distance'] ?? 0),
-                    ':fare'            => floatval($_POST['fare'] ?? 0),
-                    ':airport'         => floatval($_POST['airport'] ?? 0),
-                    ':road_tax'        => floatval($_POST['road_tax'] ?? 0),
-                    ':daily_rate'      => floatval($_POST['daily_rate'] ?? 0),
-                    ':days'            => intval($_POST['days'] ?? 0),
-                    ':hotel'           => floatval($_POST['hotel'] ?? 0),
-                    ':other_exp'       => floatval($_POST['other_exp'] ?? 0),
-                    ':advance'         => floatval($_POST['advance'] ?? 0),
-                    ':signature_date'  => $_POST['signature_date'] ?: null,
-                    ':remarks'         => trim($_POST['remarks'] ?? ''),
-                    ':document_path'   => $documentPath,
-                    ':travel_order_no' => $postOrderNo ?: null,
-                    ':id'              => $existingId
-                ]);
-                $lastId = $existingId;
-            } else {
-                $stmt = $pdo->prepare("
-                    INSERT INTO travel_expenses
-                        (emp_id, name, position, office, purpose, from_date, to_date, vehicle,
-                         distance, fare, airport, road_tax, daily_rate, days, hotel, other_exp,
-                         advance, signature_date, remarks, document_path, travel_order_no)
-                    VALUES
-                        (:emp_id, :name, :position, :office, :purpose, :from_date, :to_date,
-                         :vehicle, :distance, :fare, :airport, :road_tax, :daily_rate, :days,
-                         :hotel, :other_exp, :advance, :signature_date, :remarks, :document_path,
-                         :travel_order_no)
-                ");
-                $stmt->execute([
-                    ':emp_id'           => $postEmpID,
-                    ':name'             => trim($_POST['name']           ?? ''),
-                    ':position'         => trim($_POST['position']       ?? ''),
-                    ':office'           => trim($_POST['office']         ?? ''),
-                    ':purpose'          => trim($_POST['purpose']        ?? ''),
-                    ':from_date'        => $_POST['from_date']           ?: null,
-                    ':to_date'          => $_POST['to_date']             ?: null,
-                    ':vehicle'          => trim($_POST['vehicle']        ?? ''),
-                    ':distance'         => floatval($_POST['distance']   ?? 0),
-                    ':fare'             => floatval($_POST['fare']       ?? 0),
-                    ':airport'          => floatval($_POST['airport']    ?? 0),
-                    ':road_tax'         => floatval($_POST['road_tax']   ?? 0),
-                    ':daily_rate'       => floatval($_POST['daily_rate'] ?? 0),
-                    ':days'             => intval($_POST['days']         ?? 0),
-                    ':hotel'            => floatval($_POST['hotel']      ?? 0),
-                    ':other_exp'        => floatval($_POST['other_exp']  ?? 0),
-                    ':advance'          => floatval($_POST['advance']    ?? 0),
-                    ':signature_date'   => $_POST['signature_date']      ?: null,
-                    ':remarks'          => trim($_POST['remarks']        ?? ''),
-                    ':document_path'    => $documentPath,
-                    ':travel_order_no'  => trim($_POST['travel_order_no'] ?? '') ?: null,
-                ]);
-                $lastId = $pdo->lastInsertId();
-            }
-        }
-
+        $lastId  = $pdo->lastInsertId();
         $message = "✅ Expense record saved! ID: $lastId (EmpID: $postEmpID) — Document uploaded.";
         $formData = isset($_POST['save_and_new']) ? [] : $_POST;
 
@@ -369,14 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>भत्ता तथा खर्च विवरण - Nepal Life Insurance</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-	
-	
-	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+	    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-	
-	
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
         .form-container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border: 2px solid #000; }
@@ -627,7 +478,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
+
 <?php include 'navbar.php'; ?>
+
 
 <div class="form-container">
 				 <a href="travel.php" class="btn btn-info btn-lg">
@@ -759,8 +612,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="emp_id"          id="h_emp_id">
             <input type="hidden" name="travel_order_id" id="h_order_id">
             <input type="hidden" name="travel_order_no" id="h_travel_order_no">
-            <input type="hidden" name="id"              id="h_record_id" value="<?= htmlspecialchars($formData['id'] ?? '') ?>">
-            <input type="hidden" name="existing_document_path" id="h_existing_document_path" value="<?= htmlspecialchars($formData['document_path'] ?? '') ?>">
 
             <table>
                 <tr>
@@ -824,12 +675,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="file" name="document" id="fileInput"
                                accept=".pdf,.jpg,.jpeg,.png">
                         <div id="file-status" style="font-size:12px;margin-top:4px;color:#888;">
-                            <?php if (!empty($formData['document_path'])): ?>
-                                <span style="color: #155724; font-weight: bold;">✔ पहिले फाइल अपलोड भइसकेको छ (File already uploaded):</span> 
-                                <a href="view_document.php?file=<?= urlencode($formData['document_path']) ?>" class="view-doc-link" style="color: #0056b3; text-decoration: underline;">कागजात हेर्नुहोस् (View File)</a>
-                            <?php else: ?>
-                                कुनै फाइल छानिएको छैन।
-                            <?php endif; ?>
+                            कुनै फाइल छानिएको छैन।
                         </div>
                     </td>
                 </tr>
@@ -1067,8 +913,7 @@ btnSubmit.addEventListener('click', () => {
         return;
     }
     // 2. Check document — show popup if missing
-    const existingDocPath = document.getElementById('h_existing_document_path').value.trim();
-    if ((!fileInput.files || fileInput.files.length === 0) && !existingDocPath) {
+    if (!fileInput.files || fileInput.files.length === 0) {
         showDocWarn();
         return;
     }
@@ -1274,22 +1119,10 @@ function populateFormFromTravelOrder(d, note) {
     setField('f_distance',       d.distance       || '', false);
     setField('f_signature_date', d.from_date      || '<?= date('Y-m-d') ?>', false);
 
-    setInput('advance', d.estimatedCost || '');
-
     hEmpID.value   = d.EmpID;
     hOrderID.value = d.order_id ?? '';
     document.getElementById('h_travel_order_no').value  = d.travel_order_no ?? '';
     document.getElementById('f_travel_order_no').value  = d.travel_order_no ?? '';
-
-    // Clear record ID and existing document path
-    if (document.getElementById('h_record_id')) {
-        document.getElementById('h_record_id').value = '';
-    }
-    if (document.getElementById('h_existing_document_path')) {
-        document.getElementById('h_existing_document_path').value = '';
-    }
-    fileStatus.textContent = 'कुनै फाइल छानिएको छैन।';
-    fileStatus.style.color = '#888';
 
     const badge = d.travel_order_no
         ? `<span class="travel-order-badge">Order: ${d.travel_order_no}</span>` : '';
@@ -1320,20 +1153,6 @@ function populateFormFromRecord(rec) {
     const recOrderNo = rec.travel_order_no || rec.linked_order_no || '';
     document.getElementById('h_travel_order_no').value = recOrderNo;
     document.getElementById('f_travel_order_no').value = recOrderNo;
-
-    // Set record ID and existing document path
-    document.getElementById('h_record_id').value = rec.id || '';
-    if (rec.document_path) {
-        document.getElementById('h_existing_document_path').value = rec.document_path;
-        fileStatus.innerHTML = `<span style="color: #155724; font-weight: bold;">✔ पहिले फाइल अपलोड भइसकेको छ (File already uploaded):</span> 
-            <a href="view_document.php?file=${encodeURIComponent(rec.document_path)}" class="view-doc-link" style="color: #0056b3; text-decoration: underline;">कागजात हेर्नुहोस् (View File)</a>`;
-        fileInput.classList.remove('file-required');
-        document.getElementById('file-label-row').style.background = '';
-    } else {
-        document.getElementById('h_existing_document_path').value = '';
-        fileStatus.textContent = 'कुनै फाइल छानिएको छैन।';
-        fileStatus.style.color = '#888';
-    }
 
     ['fare','airport','road_tax','daily_rate','days','hotel','other_exp','advance','remarks']
         .forEach(n => setInput(n, rec[n] ?? ''));
@@ -1445,19 +1264,8 @@ btnSelect.addEventListener('click', () => {
 btnFresh.addEventListener('click', () => {
     closeModal();
     populateFormFromTravelOrder(currentEmpData, null);
-    // Clear record ID and existing document path
-    if (document.getElementById('h_record_id')) {
-        document.getElementById('h_record_id').value = '';
-    }
-    if (document.getElementById('h_existing_document_path')) {
-        document.getElementById('h_existing_document_path').value = '';
-    }
-    fileStatus.textContent = 'कुनै फाइल छानिएको छैन।';
-    fileStatus.style.color = '#888';
-
-    ['fare','airport','road_tax','daily_rate','days','hotel','other_exp','remarks']
+    ['fare','airport','road_tax','daily_rate','days','hotel','other_exp','advance','remarks']
         .forEach(n => setInput(n, ''));
-    setInput('advance', currentEmpData.estimatedCost || '');
     // travel_order_no stays from currentEmpData (already set in populateFormFromTravelOrder)
     calculateTotals();
 });

@@ -13,27 +13,113 @@ if (!in_array($_SESSION['role'] ?? '', $allowedRoles)) {
 $message = '';
 $error = '';
 
+function tableExists($conn, $tableName) {
+    $safeTable = $conn->real_escape_string($tableName);
+    $result = $conn->query("SHOW TABLES LIKE '$safeTable'");
+    return $result && $result->num_rows > 0;
+}
+
+function getTableColumns($conn, $tableName) {
+    $columns = [];
+    if (!tableExists($conn, $tableName)) {
+        return $columns;
+    }
+
+    $safeTable = str_replace('`', '``', $tableName);
+    $result = $conn->query("SHOW COLUMNS FROM `$safeTable`");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $columns[] = $row['Field'];
+        }
+    }
+    return $columns;
+}
+
+function bindParams($stmt, $types, &$params) {
+    $bind = [$types];
+    foreach ($params as $key => &$value) {
+        $bind[] = &$value;
+    }
+    return call_user_func_array([$stmt, 'bind_param'], $bind);
+}
+
+$userColumns = getTableColumns($conn, 'users');
+$userLevelColumn = '';
+if (in_array('level_id', $userColumns, true)) {
+    $userLevelColumn = 'level_id';
+} elseif (in_array('level', $userColumns, true)) {
+    $userLevelColumn = 'level';
+}
+
+$levelOptions = [];
+$levelIdColumn = '';
+$levelNameColumn = '';
+if (tableExists($conn, 'levels')) {
+    $levelColumns = getTableColumns($conn, 'levels');
+    $levelIdColumn = in_array('id', $levelColumns, true) ? 'id' : ($levelColumns[0] ?? '');
+    foreach (['level_name', 'name', 'title', 'level'] as $candidate) {
+        if (in_array($candidate, $levelColumns, true)) {
+            $levelNameColumn = $candidate;
+            break;
+        }
+    }
+
+    if ($levelIdColumn && $levelNameColumn) {
+        $safeIdColumn = str_replace('`', '``', $levelIdColumn);
+        $safeNameColumn = str_replace('`', '``', $levelNameColumn);
+        $levelsResult = $conn->query("SELECT `$safeIdColumn` AS id, `$safeNameColumn` AS name FROM levels ORDER BY `$safeNameColumn` ASC");
+        if ($levelsResult) {
+            while ($level = $levelsResult->fetch_assoc()) {
+                $levelOptions[] = $level;
+            }
+        }
+    }
+} elseif ($userLevelColumn === 'level') {
+    $levelsResult = $conn->query("SELECT DISTINCT level AS name FROM users WHERE level IS NOT NULL AND level <> '' ORDER BY level ASC");
+    if ($levelsResult) {
+        while ($level = $levelsResult->fetch_assoc()) {
+            $levelOptions[] = ['id' => $level['name'], 'name' => $level['name']];
+        }
+    }
+}
+
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && $_POST['action'] === 'save') {
         $id = $_POST['id'] ?? '';
         $username = trim($_POST['username']);
         $full_name = trim($_POST['full_name']);
         $role = $_POST['role'];
+        $level = trim($_POST['level'] ?? '');
         $password = $_POST['password'];
 
-        if (empty($username) || empty($full_name) || empty($role)) {
+        if (empty($username) || empty($full_name) || empty($role) || ($userLevelColumn && empty($level))) {
             $error = "Please fill in all required fields.";
         } else {
             if ($id) {
                 // Update existing user
+                $fields = ['username=?', 'full_name=?', 'role=?'];
+                $types = 'sss';
+                $params = [$username, $full_name, $role];
+
+                if ($userLevelColumn) {
+                    $safeLevelColumn = str_replace('`', '``', $userLevelColumn);
+                    $fields[] = "`$safeLevelColumn`=?";
+                    $types .= ($userLevelColumn === 'level_id') ? 'i' : 's';
+                    $params[] = $level;
+                }
+
                 if (!empty($password)) {
                     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $conn->prepare("UPDATE users SET username=?, full_name=?, role=?, password=? WHERE id=?");
-                    $stmt->bind_param("ssssi", $username, $full_name, $role, $hashed_password, $id);
-                } else {
-                    $stmt = $conn->prepare("UPDATE users SET username=?, full_name=?, role=? WHERE id=?");
-                    $stmt->bind_param("sssi", $username, $full_name, $role, $id);
+                    $fields[] = 'password=?';
+                    $types .= 's';
+                    $params[] = $hashed_password;
                 }
+
+                $types .= 'i';
+                $params[] = $id;
+                $stmt = $conn->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id=?');
+                bindParams($stmt, $types, $params);
                 
                 if ($stmt->execute()) {
                     $message = "User updated successfully.";
@@ -46,8 +132,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = "Password is required for new users.";
                 } else {
                     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $conn->prepare("INSERT INTO users (username, full_name, role, password) VALUES (?, ?, ?, ?)");
-                    $stmt->bind_param("ssss", $username, $full_name, $role, $hashed_password);
+                    $columns = ['username', 'full_name', 'role', 'password'];
+                    $placeholders = ['?', '?', '?', '?'];
+                    $types = 'ssss';
+                    $params = [$username, $full_name, $role, $hashed_password];
+
+                    if ($userLevelColumn) {
+                        $columns[] = '`' . str_replace('`', '``', $userLevelColumn) . '`';
+                        $placeholders[] = '?';
+                        $types .= ($userLevelColumn === 'level_id') ? 'i' : 's';
+                        $params[] = $level;
+                    }
+
+                    $stmt = $conn->prepare('INSERT INTO users (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')');
+                    bindParams($stmt, $types, $params);
                     
                     if ($stmt->execute()) {
                         $message = "User created successfully.";
@@ -70,7 +168,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch all users
-$sql = "SELECT id, username, full_name, role, created_at FROM users ORDER BY id DESC";
+$levelSelect = '';
+$levelJoin = '';
+if ($userLevelColumn === 'level_id' && tableExists($conn, 'levels') && $levelIdColumn && $levelNameColumn) {
+    $safeLevelIdColumn = str_replace('`', '``', $levelIdColumn);
+    $safeLevelNameColumn = str_replace('`', '``', $levelNameColumn);
+    $levelSelect = ', users.level_id AS level_id, levels.level_name AS level_name';
+    $levelJoin = " LEFT JOIN (SELECT `$safeLevelIdColumn` AS id, `$safeLevelNameColumn` AS level_name FROM levels) levels ON users.level_id = levels.id";
+} elseif ($userLevelColumn === 'level') {
+    $levelSelect = ', users.level AS user_level';
+}
+$sql = "SELECT users.id, users.username, users.full_name, users.role, users.created_at$levelSelect FROM users$levelJoin ORDER BY users.id DESC";
 $result = $conn->query($sql);
 ?>
 <!DOCTYPE html>
@@ -130,6 +238,9 @@ $result = $conn->query($sql);
                     <th>Username</th>
                     <th>Full Name</th>
                     <th>Role</th>
+                    <?php if ($userLevelColumn): ?>
+                        <th>Level</th>
+                    <?php endif; ?>
                     <th>Created At</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -150,6 +261,11 @@ $result = $conn->query($sql);
                             <?php endif; ?>
 
                         </td>
+                        <?php if ($userLevelColumn): ?>
+                            <td>
+                                <?= htmlspecialchars($userLevelColumn === 'level_id' ? ($row['level_name'] ?? '') : ($row['user_level'] ?? '')) ?>
+                            </td>
+                        <?php endif; ?>
                         <td><?= date('Y-m-d H:i', strtotime($row['created_at'])) ?></td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-outline-primary me-2" onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)">
@@ -201,6 +317,19 @@ $result = $conn->query($sql);
                             <option value="Admin">Admin</option>
                         </select>
                     </div>
+                    <?php if ($userLevelColumn): ?>
+                        <div class="mb-3">
+                            <label class="form-label">Level</label>
+                            <select name="level" id="userLevel" class="form-select" required>
+                                <option value="">Select Level</option>
+                                <?php foreach ($levelOptions as $levelOption): ?>
+                                    <option value="<?= htmlspecialchars($levelOption['id']) ?>">
+                                        <?= htmlspecialchars($levelOption['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-3">
                         <label class="form-label">Password</label>
                         <input type="password" name="password" id="userPassword" class="form-control">
@@ -226,6 +355,9 @@ $result = $conn->query($sql);
         document.getElementById('username').value = '';
         document.getElementById('fullName').value = '';
         document.getElementById('userRole').value = 'Employee';
+        if (document.getElementById('userLevel')) {
+            document.getElementById('userLevel').value = '';
+        }
         document.getElementById('userPassword').required = true;
         document.getElementById('passwordHelp').style.display = 'none';
     }
@@ -236,6 +368,9 @@ $result = $conn->query($sql);
         document.getElementById('username').value = user.username;
         document.getElementById('fullName').value = user.full_name;
         document.getElementById('userRole').value = user.role;
+        if (document.getElementById('userLevel')) {
+            document.getElementById('userLevel').value = user.level_id || user.user_level || '';
+        }
         document.getElementById('userPassword').value = '';
         document.getElementById('userPassword').required = false;
         document.getElementById('passwordHelp').style.display = 'block';

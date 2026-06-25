@@ -24,7 +24,6 @@ function emailRow(string $label, string $value, string $stripeBg = ''): string {
 
 // ─────────────────────────────────────────────
 // Helper: Send HTML email using PHP mail()
-// Now accepts the full $order array for extra fields
 // ─────────────────────────────────────────────
 function sendApprovalEmail(
     string $toEmail,
@@ -37,37 +36,35 @@ function sendApprovalEmail(
     string $nextStage
 ): void {
 
-    // ── Colour palette per stage ──
     $stageColours = [
-        'Province' => ['bg' => '#1a56db', 'badge_bg' => '#dbeafe', 'badge_text' => '#1e40af'],
-        'NSM'      => ['bg' => '#0891b2', 'badge_bg' => '#cffafe', 'badge_text' => '#0e7490'],
-        'HR'       => ['bg' => '#7c3aed', 'badge_bg' => '#ede9fe', 'badge_text' => '#5b21b6'],
-        'CEO'      => ['bg' => '#059669', 'badge_bg' => '#d1fae5', 'badge_text' => '#065f46'],
+        'PH'   => ['bg' => '#1a56db', 'badge_bg' => '#dbeafe', 'badge_text' => '#1e40af'],
+        'BM'   => ['bg' => '#0284c7', 'badge_bg' => '#e0f2fe', 'badge_text' => '#0369a1'],
+        'NSM'  => ['bg' => '#0891b2', 'badge_bg' => '#cffafe', 'badge_text' => '#0e7490'],
+        'CD'   => ['bg' => '#d97706', 'badge_bg' => '#fef3c7', 'badge_text' => '#92400e'],
+        'DH'   => ['bg' => '#9333ea', 'badge_bg' => '#f3e8ff', 'badge_text' => '#6b21a8'],
+        'HR'   => ['bg' => '#7c3aed', 'badge_bg' => '#ede9fe', 'badge_text' => '#5b21b6'],
+        'CEO'  => ['bg' => '#059669', 'badge_bg' => '#d1fae5', 'badge_text' => '#065f46'],
+        'DCEO' => ['bg' => '#0f766e', 'badge_bg' => '#ccfbf1', 'badge_text' => '#134e4a'],
     ];
-    $c = $stageColours[$approvalStage] ?? $stageColours['Province'];
+    $c = $stageColours[$approvalStage] ?? $stageColours['HR'];
 
-    // ── Pull all needed fields from $order ──
-    $employeeName  = $order['employeeName']    ?? '';
-    $travelOrderNo = $order['travel_order_no'] ?? '';
-    $destination   = $order['destination']     ?? '';
-    $travelDateFrom= $order['travelDateFrom']  ?? '';
-    $travelDateTo  = $order['travelDateTo']    ?? '';
-    $purpose       = $order['purpose']         ?? '';
-    $branchCode    = $order['BrCode']      ?? '';   // Branch / dept code column
-	$branchname    = $order['department']      ?? '';   // Branch / dept code column
-	
-	$modeoftravel    = $order['modeOfTransport']      ?? '';   // Branch / dept code column
-	$kilometer    = $order['kilometer']      ?? '';   // Branch / dept code column
-    
-	
-	$empCode       = $order['EmpID']           ?? '';
-    $noOfDays      = $order['noOfDays']        ?? '';
-    $place         = $order['travelFrom']     ?? '';   // place = destination; adjust if different column
-    $estimatedCost = !empty($order['estimatedCost'])
+    $employeeName   = $order['employeeName']    ?? '';
+    $travelOrderNo  = $order['travel_order_no'] ?? '';
+    $destination    = $order['destination']     ?? '';
+    $travelDateFrom = $order['travelDateFrom']  ?? '';
+    $travelDateTo   = $order['travelDateTo']    ?? '';
+    $purpose        = $order['purpose']         ?? '';
+    $branchCode     = $order['BrCode']          ?? '';
+    $branchName     = $order['department']      ?? '';
+    $modeOfTravel   = $order['modeOfTransport'] ?? '';
+    $kilometer      = $order['kilometer']       ?? '';
+    $empCode        = $order['EmpID']           ?? '';
+    $noOfDays       = $order['noOfDays']        ?? '';
+    $place          = $order['travelFrom']      ?? '';
+    $estimatedCost  = !empty($order['estimatedCost'])
                         ? 'Rs. ' . number_format((float)$order['estimatedCost'], 2)
                         : 'N/A';
-
-    $travelPeriod  = $travelDateFrom . '  →  ' . $travelDateTo;
+    $travelPeriod   = $travelDateFrom . '  →  ' . $travelDateTo;
 
     $remarksHtml = trim($remarks) !== ''
         ? "<p style=\"margin:6px 0 0;font-size:13px;color:{$c['badge_text']};font-style:italic;\">
@@ -75,25 +72,33 @@ function sendApprovalEmail(
            </p>"
         : '';
 
-    // ── Build detail rows ──
-    $detailRows  = emailRow('TADA No',         $travelOrderNo,  $c['bg']);
-    $detailRows .= emailRow('Employee Name',   $employeeName);
-    $detailRows .= emailRow('Employee Code',   $empCode,        $c['bg']);
-    $detailRows .= emailRow('Branch Code',     $branchCode);
-	$detailRows .= emailRow('Branch Name',     $branchname);
-    $detailRows .= emailRow('Place',           $place,          $c['bg']);
-    $detailRows .= emailRow('Destination',     $destination);
-	
-	$detailRows .= emailRow('Travel Mode',$modeoftravel, $c['bg']);
-	$detailRows .= emailRow('kilometer',     $kilometer);
-	
-    $detailRows .= emailRow('Travel Date From',$travelDateFrom, $c['bg']);
-    $detailRows .= emailRow('Travel Date To',  $travelDateTo);
-    $detailRows .= emailRow('No. of Days',     $noOfDays,       $c['bg']);
-    $detailRows .= emailRow('Purpose',         $purpose);
-    $detailRows .= emailRow('Advance Amount',  $estimatedCost,  $c['bg']);
+    $detailRows  = emailRow('TADA No',          $travelOrderNo,  $c['bg']);
+    $detailRows .= emailRow('Employee Name',    $employeeName);
+    $detailRows .= emailRow('Employee Code',    $empCode,        $c['bg']);
+    $detailRows .= emailRow('Branch Code',      $branchCode);
+    $detailRows .= emailRow('Branch Name',      $branchName,     $c['bg']);
+    $detailRows .= emailRow('Place',            $place);
+    $detailRows .= emailRow('Destination',      $destination,    $c['bg']);
+    $detailRows .= emailRow('Travel Mode',      $modeOfTravel);
+    $detailRows .= emailRow('Kilometer',        $kilometer,      $c['bg']);
+    $detailRows .= emailRow('Travel Date From', $travelDateFrom);
+    $detailRows .= emailRow('Travel Date To',   $travelDateTo,   $c['bg']);
+    $detailRows .= emailRow('No. of Days',      $noOfDays);
+    $detailRows .= emailRow('Purpose',          $purpose,        $c['bg']);
+    $detailRows .= emailRow('Advance Amount',   $estimatedCost);
 
-    // ── HTML body ──
+    $stageLabel = $nextStage !== 'None – Fully Approved ✔'
+        ? "<p style=\"margin:0;font-size:14px;color:#92400e;line-height:1.5;\">
+               ⏳ &nbsp;<strong>Action Required:</strong>
+               Please review and complete the
+               <strong>{$nextStage} Approval</strong>
+               at your earliest convenience.
+           </p>"
+        : "<p style=\"margin:0;font-size:14px;color:#065f46;line-height:1.5;\">
+               ✅ &nbsp;This travel order has been <strong>fully approved</strong>.
+               No further action is required.
+           </p>";
+
     $htmlBody = <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -103,19 +108,15 @@ function sendApprovalEmail(
   <title>{$subject}</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
-
   <table width="100%" cellpadding="0" cellspacing="0" border="0"
          style="background:#f1f5f9;padding:36px 0;">
     <tr>
       <td align="center">
-
-        <!-- ░░ Outer card ░░ -->
         <table width="600" cellpadding="0" cellspacing="0" border="0"
                style="max-width:600px;width:100%;background:#ffffff;
                       border-radius:12px;overflow:hidden;
                       box-shadow:0 4px 24px rgba(0,0,0,0.09);">
-
-          <!-- ▌Header ▌ -->
+          <!-- Header -->
           <tr>
             <td style="background:{$c['bg']};padding:38px 40px;text-align:center;">
               <p style="margin:0 0 6px;font-size:11px;color:rgba(255,255,255,0.7);
@@ -133,12 +134,9 @@ function sendApprovalEmail(
               </p>
             </td>
           </tr>
-
-          <!-- ▌Body ▌ -->
+          <!-- Body -->
           <tr>
             <td style="padding:36px 40px;">
-
-              <!-- Greeting -->
               <p style="margin:0 0 8px;font-size:16px;color:#1f2937;font-weight:600;">
                 Dear {$toName},
               </p>
@@ -146,8 +144,7 @@ function sendApprovalEmail(
                 A travel order has been <strong>approved at the {$approvalStage} level</strong>
                 and forwarded to you for the next action.
               </p>
-
-              <!-- ░░ Travel Order Details card ░░ -->
+              <!-- Details -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="border:1px solid #e2e8f0;border-radius:10px;
                             overflow:hidden;margin-bottom:24px;">
@@ -163,8 +160,7 @@ function sendApprovalEmail(
                 </tr>
                 {$detailRows}
               </table>
-
-              <!-- ░░ Approved-by badge ░░ -->
+              <!-- Approved-by badge -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="background:{$c['badge_bg']};
                             border-left:4px solid {$c['bg']};
@@ -185,33 +181,24 @@ function sendApprovalEmail(
                   </td>
                 </tr>
               </table>
-
-              <!-- ░░ Action-required banner ░░ -->
+              <!-- Action banner -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0"
                      style="background:#fffbeb;border:1px solid #fcd34d;
                             border-radius:8px;margin-bottom:28px;">
                 <tr>
                   <td style="padding:14px 18px;">
-                    <p style="margin:0;font-size:14px;color:#92400e;line-height:1.5;">
-                      ⏳ &nbsp;<strong>Action Required:</strong>
-                      Please review and complete the
-                      <strong>{$nextStage} Approval</strong>
-                      at your earliest convenience.
-                    </p>
+                    {$stageLabel}
                   </td>
                 </tr>
               </table>
-
               <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.7;">
                 Please log in to the
                 <strong style="color:#374151;">Nepal Life Travel Management System</strong>
                 to take action on this request.
               </p>
-
             </td>
           </tr>
-
-          <!-- ▌Footer ▌ -->
+          <!-- Footer -->
           <tr>
             <td style="background:#f8fafc;border-top:1px solid #e2e8f0;
                         padding:22px 40px;text-align:center;">
@@ -223,41 +210,34 @@ function sendApprovalEmail(
               </p>
             </td>
           </tr>
-
         </table>
-        <!-- /Outer card -->
-
       </td>
     </tr>
   </table>
-
 </body>
 </html>
 HTML;
 
-    // ── Plain-text fallback ──
     $plainText = "Dear {$toName},\n\n"
         . "A travel order for {$employeeName} (TADA No: {$travelOrderNo}) has been approved\n"
-        . "at the {$approvalStage} level by {$approverName} and requires your {$nextStage} approval.\n\n"
-        . "Employee Code  : {$empCode}\n"
-        . "Branch Name    : {$branch_name}\n"
-		. "branchCode    : {$BrCode}\n"
-		. "Mode Of Transport    : {$modeOfTransport}\n"
-        . "Place          : {$travelFrom}\n"
-        . "Destination    : {$destination}\n"
-        . "Travel Date From: {$travelDateFrom}\n"
-        . "Travel Date To  : {$travelDateTo}\n"
-        . "No. of Days    : {$noOfDays}\n"
-
-        . "Kilometer Covered    : {$kilometer}\n"
-		
-        . "Purpose        : {$purpose}\n"
-        . "Advance Amount : {$estimatedCost}\n"
-        . (trim($remarks) !== '' ? "Remarks        : {$remarks}\n" : '')
+        . "at the {$approvalStage} level by {$approverName}.\n\n"
+        . "Employee Code      : {$empCode}\n"
+        . "Branch Code        : {$branchCode}\n"
+        . "Branch Name        : {$branchName}\n"
+        . "Mode of Transport  : {$modeOfTravel}\n"
+        . "Kilometer Covered  : {$kilometer}\n"
+        . "Place              : {$place}\n"
+        . "Destination        : {$destination}\n"
+        . "Travel Date From   : {$travelDateFrom}\n"
+        . "Travel Date To     : {$travelDateTo}\n"
+        . "No. of Days        : {$noOfDays}\n"
+        . "Purpose            : {$purpose}\n"
+        . "Advance Amount     : {$estimatedCost}\n"
+        . (trim($remarks) !== '' ? "Remarks            : {$remarks}\n" : '')
+        . "\nNext Action        : {$nextStage}\n"
         . "\nPlease log in to the Nepal Life Travel Management System to take action.\n\n"
         . "This is an automated message. Please do not reply.";
 
-    // ── MIME boundary ──
     $boundary = '----=_Part_' . md5(uniqid((string)mt_rand(), true));
 
     $headers  = "From: Nepal Life Travel System <noreply@nepallife.com.np>\r\n";
@@ -280,7 +260,6 @@ HTML;
     $body .= "--{$boundary}--";
 
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-
     $sent = mail($toEmail, $encodedSubject, $body, $headers);
     if (!$sent) {
         error_log("Travel System – mail() failed. To: {$toEmail} | Subject: {$subject}");
@@ -288,7 +267,7 @@ HTML;
 }
 
 // ─────────────────────────────────────────────
-// Helper: fetch ALL employees by level
+// Helper: Fetch recipients by level/level
 // ─────────────────────────────────────────────
 function getRecipientsByLevel(mysqli $conn, string $level): array {
     $stmt = $conn->prepare(
@@ -308,8 +287,7 @@ function getRecipientsByLevel(mysqli $conn, string $level): array {
 }
 
 // ─────────────────────────────────────────────
-// Helper: send individual email to every
-// employee at the given level
+// Helper: Notify all employees at a given level
 // ─────────────────────────────────────────────
 function notifyLevel(
     mysqli $conn,
@@ -337,8 +315,106 @@ function notifyLevel(
 }
 
 // ─────────────────────────────────────────────
-// Fetch the travel order
+// Helper: Determine the approval chain for
+// a given travel order based on level & BrCode.
+//
+// Returns an ordered array of stage keys, e.g.:
+//   ['BM', 'PH', 'NSM', 'HR', 'CEO_OR_DCEO']
+//
+// Chains:
+//   OI  (Operation Incharge) → PH → NSM → HR → CEO/DCEO
+//   ST  (Staff)              → BM → PH  → NSM → HR → CEO/DCEO
+//   CD  (Claim)              → CD → HR  → CEO/DCEO
+//   BrCode = '100'           → DH → HR  → CEO/DCEO
 // ─────────────────────────────────────────────
+function getApprovalChain(array $order): array
+{
+    $level    = strtoupper(trim($order['level']    ?? ''));
+    $brCode  = trim($order['BrCode'] ?? '');
+    $isClaim = strtolower(trim($order['order_type'] ?? '')) === 'claim';
+
+    // BrCode 100 takes precedence over level
+    if ($brCode === '100') {
+        return ['DH', 'HR', 'CEO_OR_DCEO'];
+    }
+
+    if ($isClaim || $level === 'CD') {
+        return ['CD', 'HR', 'CEO_OR_DCEO'];
+    }
+
+    if ($level === 'ST') {
+        return ['BM', 'PH', 'NSM', 'HR', 'CEO_OR_DCEO'];
+    }
+
+    // OI (Operation Incharge) – also the default
+    return ['PH', 'NSM', 'HR', 'CEO_OR_DCEO'];
+}
+
+// ─────────────────────────────────────────────
+// Helper: Map a stage key to the employees
+// table `level` value used in getRecipientsByLevel
+// ─────────────────────────────────────────────
+function stageToLevel(string $stage): string
+{
+    $map = [
+        'BM'          => 'BM',
+        'PH'          => 'PH',
+        'NSM'         => 'NSM',
+        'CD'          => 'CD',
+        'DH'          => 'DH',
+        'HR'          => 'HR',
+        'CEO_OR_DCEO' => 'CEO',   // adjust if CEO and DCEO are separate levels
+    ];
+    return $map[$stage] ?? $stage;
+}
+
+// ─────────────────────────────────────────────
+// Helper: Friendly display label for a stage key
+// ─────────────────────────────────────────────
+function stageLabel(string $stage): string
+{
+    $labels = [
+        'BM'          => 'Branch Manager',
+        'PH'          => 'Province Head',
+        'NSM'         => 'NSM',
+        'CD'          => 'Claim Head',
+        'DH'          => 'Department Head',
+        'HR'          => 'Human Resource',
+        'CEO_OR_DCEO' => 'CEO / DCEO',
+    ];
+    return $labels[$stage] ?? $stage;
+}
+
+// ─────────────────────────────────────────────
+// Helper: DB column prefix for each stage key
+// e.g. 'PH' → 'approval_ph_status', 'ph_approver_name' …
+// ─────────────────────────────────────────────
+function stageDbPrefix(string $stage): string
+{
+    $prefixes = [
+        'BM'          => 'bm',
+        'PH'          => 'ph',
+        'NSM'         => 'nsm',
+        'CD'          => 'cd',
+        'DH'          => 'dh',
+        'HR'          => 'hr',
+        'CEO_OR_DCEO' => 'ceo',
+    ];
+    return $prefixes[$stage] ?? strtolower($stage);
+}
+
+// ─────────────────────────────────────────────
+// Helper: POST field name used by each stage
+// e.g. 'PH' → 'ph_approver_name'
+// ─────────────────────────────────────────────
+function stagePostKey(string $stage): string
+{
+    return stageDbPrefix($stage) . '_approver_name';
+}
+
+// ══════════════════════════════════════════════
+// MAIN – Fetch travel order
+// ══════════════════════════════════════════════
 $id = (int) ($_POST['id'] ?? $_POST['travel_order_id'] ?? 0);
 if (!$id) {
     die("Invalid travel order ID.");
@@ -355,166 +431,82 @@ if (!$order) {
 $updatedBy = $_SESSION['full_name'] ?? $_SESSION['username'] ?? 'System';
 $now       = date('Y-m-d H:i:s');
 
-// ══════════════════════════════════════════════
-// PROVINCE APPROVAL  →  email ALL NSM employees
-// ══════════════════════════════════════════════
-if (isset($_POST['approver_name'], $_POST['approver_email'])) {
+// Determine the correct approval chain for this order
+$chain = getApprovalChain($order);
 
-    $approverName  = trim($_POST['approver_name']);
-    $approverEmail = trim($_POST['approver_email']);
-    $remarks       = trim($_POST['remarks'] ?? '');
+// ──────────────────────────────────────────────
+// Loop through the chain and find which stage
+// is being submitted right now (by checking POST)
+// ──────────────────────────────────────────────
+$handledStage = null;
 
-    $stmt = $conn->prepare("
+foreach ($chain as $index => $stage) {
+
+    $postKey = stagePostKey($stage);         // e.g. 'ph_approver_name'
+
+    if (!isset($_POST[$postKey])) {
+        continue;   // not this stage
+    }
+
+    // ── Grab POST data for this stage ──
+    $dbPrefix      = stageDbPrefix($stage);  // e.g. 'ph'
+    $approverName  = trim($_POST[$postKey]);
+    $approverEmail = trim($_POST[$dbPrefix . '_approver_email'] ?? '');
+    $remarks       = trim($_POST['approval_' . $dbPrefix . '_remarks'] ?? '');
+
+    // ── Update the travel_orders table ──
+    $sql = "
         UPDATE travel_orders
-           SET approval_province_status  = 'Approved',
-               province_approver_name    = ?,
-               province_approver_email   = ?,
-               approval_province_remarks = ?,
-               last_updated_by           = ?,
-               last_updated_at           = ?
+           SET approval_{$dbPrefix}_status  = 'Approved',
+               {$dbPrefix}_approver_name    = ?,
+               {$dbPrefix}_approver_email   = ?,
+               approval_{$dbPrefix}_remarks = ?,
+               last_updated_by              = ?,
+               last_updated_at              = ?
          WHERE id = ?
-    ");
-    $stmt->bind_param("sssssi", $approverName, $approverEmail, $remarks, $updatedBy, $now, $id);
-    $stmt->execute();
-
-    notifyLevel(
-        $conn,
-        'NSM',
-        "Action Required: NSM Approval – Travel Order {$order['travel_order_no']}",
-        'Province',
-        $order,
+    ";
+    $upd = $conn->prepare($sql);
+    $upd->bind_param("sssssi",
         $approverName,
+        $approverEmail,
         $remarks,
-        'NSM'
+        $updatedBy,
+        $now,
+        $id
     );
+    $upd->execute();
 
-    header("Location: view_travel_orders.php?success=province");
-    exit;
-}
+    // ── Determine the next stage in the chain ──
+    $nextStageKey   = $chain[$index + 1] ?? null;
+    $nextStageLabel = $nextStageKey
+                        ? stageLabel($nextStageKey)
+                        : 'None – Fully Approved ✔';
 
-// ══════════════════════════════════════════════
-// NSM APPROVAL  →  email ALL HR employees
-// ══════════════════════════════════════════════
-if (isset($_POST['nsm_approver_name'])) {
-
-    $approverName  = trim($_POST['nsm_approver_name']);
-    $approverEmail = trim($_POST['nsm_approver_email']);
-    $remarks       = trim($_POST['approval_nsm_remarks'] ?? '');
-
-    $stmt = $conn->prepare("
-        UPDATE travel_orders
-           SET approval_nsm_status  = 'Approved',
-               nsm_approver_name    = ?,
-               nsm_approver_email   = ?,
-               approval_nsm_remarks = ?,
-               last_updated_by      = ?,
-               last_updated_at      = ?
-         WHERE id = ?
-    ");
-    $stmt->bind_param("sssssi", $approverName, $approverEmail, $remarks, $updatedBy, $now, $id);
-    $stmt->execute();
-
-    notifyLevel(
-        $conn,
-        'HR',
-        "Action Required: HR Approval – Travel Order {$order['travel_order_no']}",
-        'NSM',
-        $order,
-        $approverName,
-        $remarks,
-        'HR'
-    );
-
-    header("Location: view_travel_orders.php?success=nsm");
-    exit;
-}
-
-// ══════════════════════════════════════════════
-// HR APPROVAL  →  email ALL CEO employees
-// ══════════════════════════════════════════════
-if (isset($_POST['hr_approver_name'])) {
-
-    $approverName  = trim($_POST['hr_approver_name']);
-    $approverEmail = trim($_POST['hr_approver_email']);
-    $remarks       = trim($_POST['approval_hr_remarks'] ?? '');
-
-    $stmt = $conn->prepare("
-        UPDATE travel_orders
-           SET approval_hr_status  = 'Approved',
-               hr_approver_name    = ?,
-               hr_approver_email   = ?,
-               approval_hr_remarks = ?,
-               last_updated_by     = ?,
-               last_updated_at     = ?
-         WHERE id = ?
-    ");
-    $stmt->bind_param("sssssi", $approverName, $approverEmail, $remarks, $updatedBy, $now, $id);
-    $stmt->execute();
-
-    notifyLevel(
-        $conn,
-        'CEO',
-        "Action Required: CEO Approval – Travel Order {$order['travel_order_no']}",
-        'HR',
-        $order,
-        $approverName,
-        $remarks,
-        'CEO'
-    );
-
-    header("Location: view_travel_orders.php?success=hr");
-    exit;
-}
-
-// ══════════════════════════════════════════════
-// CEO APPROVAL  →  (optionally email employee)
-// ══════════════════════════════════════════════
-if (isset($_POST['ceo_approver_name'])) {
-
-    $approverName  = trim($_POST['ceo_approver_name']);
-    $approverEmail = trim($_POST['ceo_approver_email']);
-    $remarks       = trim($_POST['approval_ceo_remarks'] ?? '');
-
-    $stmt = $conn->prepare("
-        UPDATE travel_orders
-           SET approval_ceo_status  = 'Approved',
-               ceo_approver_name    = ?,
-               ceo_approver_email   = ?,
-               approval_ceo_remarks = ?,
-               last_updated_by      = ?,
-               last_updated_at      = ?
-         WHERE id = ?
-    ");
-    $stmt->bind_param("sssssi", $approverName, $approverEmail, $remarks, $updatedBy, $now, $id);
-    $stmt->execute();
-
-    // ── Optional: notify the employee that their order is fully approved ──
-    // Uncomment the block below to enable it.
-    /*
-    $empStmt = $conn->prepare(
-        "SELECT employeeName, employeeEmail FROM employees WHERE EmpID = ? LIMIT 1"
-    );
-    $empStmt->bind_param("s", $order['EmpID']);
-    $empStmt->execute();
-    $emp = $empStmt->get_result()->fetch_assoc();
-    if (!empty($emp['employeeEmail'])) {
-        sendApprovalEmail(
-            $emp['employeeEmail'],
-            $emp['employeeName'],
-            "Your Travel Order {$order['travel_order_no']} is Fully Approved",
-            'CEO',
+    // ── Notify the next stage recipients ──
+    if ($nextStageKey !== null) {
+        $nextLevel = stageToLevel($nextStageKey);
+        notifyLevel(
+            $conn,
+            $nextLevel,
+            "Action Required: {$nextStageLabel} Approval – Travel Order {$order['travel_order_no']}",
+            stageLabel($stage),
             $order,
             $approverName,
             $remarks,
-            'None – Fully Approved ✔'
+            $nextStageLabel
         );
     }
-    */
 
-    header("Location: view_travel_orders.php?success=ceo");
+    $handledStage = $dbPrefix;
+    break;
+}
+
+// ── Redirect ──
+if ($handledStage !== null) {
+    header("Location: view_travel_orders.php?success={$handledStage}");
     exit;
 }
 
-// Fallback
+// Fallback – no matching POST key found
 header("Location: view_travel_orders.php?error=invalid");
 exit;

@@ -28,7 +28,7 @@ unset($_SESSION['message']);
     // Handle Backup
     if (isset($_POST['backup'])) {
         $timestamp = date('Y-m-d_H-i-s');
-        $backupFile = "$backupDir/all_db_backup_$timestamp.sql";
+        $backupFile = "$backupDir/hr_tada_db_backup_$timestamp.sql";
 
         $mysqlUserEscaped = escapeshellarg($mysqlUser);
         $mysqlPasswordPart = $mysqlPassword !== '' ? '-p' . escapeshellarg($mysqlPassword) : '';
