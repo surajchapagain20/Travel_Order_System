@@ -8,7 +8,7 @@ Welcome to the HR Portal Travel System. This manual provides step-by-step instru
 
 The Travel Order Request form is used to submit a travel plan for approval before the travel occurs.
 
-![Travel Order Form](images\travel_order_form_1782312198482.png)
+![Travel Order Form](https:\\github.com\surajchapagain20\Travel_Order_System/edit\main\images\travel_order_form_1782312198482.png)
 
 ### Step-by-Step Guide:
 
@@ -38,7 +38,7 @@ The Travel Order Request form is used to submit a travel plan for approval befor
 
 After your travel is complete and your travel order was approved, you can claim your expenses using the Apply Expense form.
 
-![Apply Expense Form](images\apply_expense_form_1782312209574.png)
+![Apply Expense Form](https:\\github.com\surajchapagain20\Travel_Order_System/edit\main\images\apply_expense_form_1782312209574.png)
 
 ### Step-by-Step Guide:
 
