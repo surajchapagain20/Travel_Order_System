@@ -1,120 +1,70 @@
-Getting Access and Moving Around the Application
+# Travel System User Manual
 
-Overview
+Welcome to the HR Portal Travel System. This manual provides step-by-step instructions on how to use the **Travel Order Request** (`travel.php`) and **Apply Expense** (`Apply_expense.php`) modules.
 
-This part of the application defines the post-login landing experience and the shared navigation frame that users use to move between major HR and travel-order pages. The dashboard summarizes employee and travel-order activity, while the sidebar in navbar.php provides role-aware links to request creation, travel record review, employee administration, expense tools, backups, SMTP settings, and user management.
+---
 
-The section also includes the credential constants in password.php and the shared styling rules in . Together, these files shape how the app looks and how users move through it after they are already authenticated.
+## 1. Travel Order Request (`travel.php`)
 
-Dashboard Landing Screen
+The Travel Order Request form is used to submit a travel plan for approval before the travel occurs.
 
-`dashboard.php`
+![Travel Order Form](C:\Users\Lenovo\.gemini\antigravity\brain\e81b89db-227d-4e2c-910a-738109384da3\travel_order_form_1782312198482.png)
 
-The dashboard is the main landing page after login. It starts with require_once 'auth.php'; and requireLogin();, then loads db.php before reading session data and database metrics. The page uses $_SESSION['full_name'] for the welcome message and $_SESSION['role'] ?? 'Employee' for the visible role badge.
+### Step-by-Step Guide:
 
-What the dashboard shows
+1. **Employee Information**: Provide your Employee ID. If you select your ID, the system will typically auto-fill or expect details like your Name, Branch Code, Level, Designation, and Department.
+2. **Travel Details**:
+   - **Travel From & Destination**: Enter your starting location and the final destination.
+   - **Travel Dates**: Select the start date (`Date From`) and end date (`Date To`). The number of days will be calculated accordingly.
+   - **Mode of Transport**: Specify how you will be traveling (e.g., Flight, Bus, Company Vehicle).
+   - **Kilometer**: Enter the estimated travel distance in kilometers.
+   - **Purpose**: Briefly explain the reason for the travel.
+   - **Estimated Cost**: Enter the estimated cost for the trip.
+3. **Approval Information**:
+   - **Request Type**: Select whether this is a 'Normal' travel request or a 'Claim' (Note: Claim is only available for Branch Code 100).
+   - **Approver Email**: Select the appropriate approver from the dropdown list. The system determines the necessary approval level (e.g., Department Head, Province Head, HR, CEO) based on your level and branch code.
+4. **Document Upload**:
+   - You must attach a supporting document (e.g., an invitation, schedule, or approval memo).
+   - **Allowed Formats**: PDF, JPG, PNG.
+   - **Max Size**: 5MB.
+5. **Submit**: Click the **Submit** button. An email notification will automatically be sent to your assigned approver.
 
-The four stat cards act as navigation shortcuts:
+> [!TIP]
+> Make sure to submit your travel request well in advance to allow time for the approval process.
 
-add_employee.php from the Total Employees card
+---
 
-view_travel_orders.php from the Total Travel Orders card
+## 2. Apply Travel Expense (`Apply_expense.php`)
 
-view_travel_orders.php?filter=approved from Approved Orders
+After your travel is complete and your travel order was approved, you can claim your expenses using the Apply Expense form.
 
-view_travel_orders.php?filter=pending from Pending Approval
+![Apply Expense Form](C:\Users\Lenovo\.gemini\antigravity\brain\e81b89db-227d-4e2c-910a-738109384da3\apply_expense_form_1782312209574.png)
 
-The dashboard also loads UI assets directly in the page head:
+### Step-by-Step Guide:
 
-Bootstrap 5.3.0 CSS
+1. **Employee Search**:
+   - Begin by typing your **Employee ID** or **Name** in the search bar. The system will search and display matching records. Select your profile to proceed.
+2. **Link Travel Order**:
+   - Once your profile is loaded, the system will fetch your approved Travel Orders that haven't been claimed yet.
+   - Select the relevant Travel Order to link the expenses. This will auto-fill related fields like Purpose, Dates, and Vehicle based on the original request.
+3. **Expense Details**:
+   - Fill in the actual expenses incurred during the trip. This includes:
+     - **Distance** and **Vehicle**
+     - **Transportation Fare**, **Airport/Flight costs**, **Road Tax**
+     - **Daily Allowance (Rate & Days)**
+     - **Hotel Costs**
+     - **Other Expenses**
+     - **Advances** (if any were taken)
+   - Add any additional **Remarks** if necessary.
+4. **Document / Bill Upload**:
+   - You are required to upload a single file containing scanned copies of your bills, receipts, and boarding passes.
+   - **Allowed Formats**: PDF, JPG, JPEG, PNG.
+5. **Submit & Manage**:
+   - Click **Submit Expense**.
+   - Below the form, you can view a table of your **Past Expense Records** along with their current status (e.g., Pending, Approved). You can also edit recently submitted expenses if changes are needed.
 
-Bootstrap Icons 1.10.5
+> [!IMPORTANT]
+> Keep all physical receipts and bills. You must upload clear scans or photos of them to process the expense claim successfully.
 
-Chart.js
-
-Bootstrap 5.3.0 bundle JS
-
-Dashboard styling conventions
-
-The page uses its own inline CSS for the landing experience:
-
-body uses the Outfit font and a light gray background
-
-.dashboard-header uses a dark gradient with rounded bottom corners and a shadow
-
-.stat-card is a white, bordered card with a hover lift effect
-
-.chart-container matches the same card styling for the charts
-
-Shared Navigation Sidebar
-
-`navbar.php`
-
-navbar.php provides the fixed left sidebar used for in-app navigation. It loads auth.php, reads the active user role from $_SESSION['role'] ?? '', and determines the current page with basename($_SERVER['PHP_SELF']) so it can mark the current link with the active class.
-
-The sidebar also changes the available links based on role:
-
-Sidebar layout behavior
-
-The sidebar is not just a menu; it changes the page layout:
-
-body gets padding-left: 260px to make room for the fixed sidebar
-
-.sidebar is fixed on the left, fills the full viewport height, and stays on screen
-
-The user block shows an avatar icon, $_SESSION['full_name'], and the role label
-
-The footer contains a dedicated Logout button
-
-The active page is visually highlighted by the active class
-
-Sidebar styling conventions
-
-The sidebar styling is defined inline in navbar.php and uses:
-
-a dark #0f172a background
-
-blue accent colors for headings, icons, and active states
-
-hover states that brighten the text and icon color
-
-a fixed width of 260px
-
-a scrollable navigation area via .sidebar-nav
-
-Password Credential File
-
-`password.php`
-
-This file centralizes two credential constants:
-
-The source includes a comment telling the reader to store credentials securely or use encryption, and the values shown in the file are placeholders. In the provided source, password-related handling is limited to these constants.
-
-Shared Styling File
-
-`includes/style_smtp.css`
-
-This stylesheet provides a second, reusable visual system for pages that use it. It is separate from the sidebar styles in navbar.php and focuses on a polished card-and-button layout.
-
-Styling rules in
-
-Shared interface conventions
-
-This stylesheet reinforces the same visual language used elsewhere in the app:
-
-rounded containers
-
-soft shadows
-
-blue primary actions
-
-readable sans-serif typography
-
-responsive spacing for smaller screens
-
-Navigation Flow
-
-
-
-Key Files Reference
-
+---
+*If you encounter any issues while using the system, please contact the HR or IT support team.*
