@@ -8,7 +8,7 @@ Welcome to the HR Portal Travel System. This manual provides step-by-step instru
 
 The Travel Order Request form is used to submit a travel plan for approval before the travel occurs.
 
-![Travel Order Form](images\travel_order_form_1782312198482.png)
+![Travel Order Form](.\images\travel_order_form_1782312198482.png)
 
 ### Step-by-Step Guide:
 
